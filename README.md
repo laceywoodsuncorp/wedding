@@ -1,39 +1,52 @@
-# Wedding Website
+# Under the Jacarandas: wedding website
 
-A static wedding website, ready to deploy on Netlify (or any static host).
+The wedding site, hosted on **Cloudflare Pages**. RSVPs are saved to a
+**Cloudflare D1** database, and you can read them on a password-protected page.
 
-## Structure
+## How it fits together
 
-| File | Purpose |
+| Path | What it does |
 | --- | --- |
-| `index.html` | Starter home page with sections for story, details, travel, registry and RSVP. Replace the placeholder text. |
-| `styles.css` | Site styles (supports light and dark mode). |
-| `_redirects` | Netlify redirect rules. |
+| `public/index.html` | The website itself. |
+| `functions/api/rsvp.js` | `POST /api/rsvp`. The RSVP form sends each reply here and it's saved to the database. |
+| `functions/admin/index.js` | `/admin` is a password-protected page listing every reply, with totals (guests coming, camping). |
+| `functions/admin/export.js` | `/admin/export` downloads all replies as a CSV file you can open in Excel or Google Sheets. |
+| `lib/db.js` | Shared database and password helpers. The table is created automatically on first use. |
 
-## Redirects
+If saving a reply fails (for example, no connection), the form falls back to
+showing the reply with a **Copy reply** button so the guest can send it to you directly.
 
-`_redirects` currently contains:
+## One-time setup in Cloudflare
 
-```
-/    /index_updated_abc_emergency_map.html   200
-```
+1. **Create the database:** Cloudflare dashboard → **Storage & Databases → D1** →
+   **Create database**. Name it `wedding-rsvp`.
+2. **Create the site:** **Workers & Pages → Create → Pages → Connect to Git** and
+   pick this repository.
+   - Framework preset: **None**
+   - Build command: *(leave empty)*
+   - Build output directory: `public`
+3. **Connect the database:** open the Pages project → **Settings → Bindings → Add → D1 database**.
+   - Variable name: `DB` (exactly this)
+   - Database: `wedding-rsvp`
+   - Add it for both **Production** and **Preview**.
+4. **Set your admin password:** **Settings → Variables and Secrets → Add**.
+   - Type: **Secret**, name: `ADMIN_PASSWORD`, value: a password of your choice.
+5. **Redeploy** (Deployments → ⋯ → Retry deployment) so the binding and secret take effect.
 
-This rewrites the home page to `index_updated_abc_emergency_map.html`. That file is
-not in the repo yet — add it to the repo root if it's meant to be your home page.
-While `index.html` exists, Netlify serves it at `/` and this rule has no effect
-(Netlify skips non-forced rules when a file already exists at the path).
-Add `!` after `200` to force the rewrite, or delete the line if it isn't needed.
+## Reading responses
 
-## Deploying on Netlify
-
-1. In Netlify, choose **Add new site → Import an existing project** and pick this repository.
-2. Leave the build command empty and set the publish directory to `/` (the repo root).
-3. Deploy. Every push to the default branch redeploys the site.
+- Go to `https://<your-site>/admin`. When the browser asks for a login, enter any
+  username and your `ADMIN_PASSWORD`.
+- Click **Download as spreadsheet (CSV)** for a file version.
+- If a guest replies more than once (the button changes to "Update my reply"), each
+  reply is kept. Use the most recent one.
+- You can also query the data in the dashboard: **D1 → wedding-rsvp → Console**, e.g.
+  `SELECT * FROM rsvps ORDER BY created_at DESC;`
 
 ## Local preview
 
 ```sh
-python3 -m http.server 8000
+npx wrangler pages dev public --d1 DB=local --binding ADMIN_PASSWORD=test
 ```
 
-Then open http://localhost:8000.
+Then open http://localhost:8788 (admin at http://localhost:8788/admin, password `test`).
