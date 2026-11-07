@@ -1,4 +1,4 @@
-# Under the Jacarandas: wedding website
+# Lacey & Lachlan: wedding website
 
 The wedding site, hosted on **Cloudflare Pages**. RSVPs are saved to a
 **Cloudflare D1** database, and you can read them on a password-protected page.
