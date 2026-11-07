@@ -306,9 +306,10 @@ html.calm *,html.calm *::before,html.calm *::after{animation:none!important;tran
         <div class="rs-head">
           <span class="label">RSVP</span>
           <h2>Kindly <em>reply</em></h2>
-          <p class="by">by <i class="ph">1 September 2027</i></p>
+          <p class="by">by 31 July 2027</p>
         </div>
         <div class="card">
+              <p class="send" id="r-closed" hidden style="text-align:center">RSVPs closed on 31 July 2027. Thank you to everyone who replied.</p>
               <form id="rsvp-form" novalidate style="display:grid;gap:26px">
                 <div class="f"><label for="r-name">Name(s)</label><input type="text" id="r-name" autocomplete="name" placeholder="As on your invitation"></div>
                 <div class="f"><span class="label" id="att-l">Will you be there?</span>
@@ -334,8 +335,7 @@ html.calm *,html.calm *::before,html.calm *::after{animation:none!important;tran
               </form>
               <div class="out" aria-live="polite">
                 <pre id="r-out" hidden></pre>
-                <div class="row"><button class="btn line" type="button" id="r-copy" hidden>Copy reply</button><span class="status" id="r-status"></span></div>
-                <p class="send" id="r-send" hidden>Send it to <i class="ph">your email</i> or <i class="ph">your mobile</i>.</p>
+                <div class="row"><span class="status" id="r-status"></span></div>
               </div>
             </div>
       </div>
@@ -676,48 +676,76 @@ var ART = {"hero": ["data:image/webp;base64,UklGRpD0BQBXRUJQVlA4IIT0BQCQ2AudASpP
   /* ---------- RSVP ---------- */
   document.getElementById('r-yes').addEventListener('change', function(){ var c = centre(this.parentNode); burst(c[0], c[1], 14); });
   var out = document.getElementById('r-out'), st = document.getElementById('r-status');
-  var sendEl = document.getElementById('r-send'), copyBtn = document.getElementById('r-copy'), submitBtn = document.getElementById('r-submit'), sending = false;
-  document.getElementById('rsvp-form').addEventListener('submit', function(e){
+  var form = document.getElementById('rsvp-form'), submitBtn = document.getElementById('r-submit'), sending = false;
+  // RSVPs close at the end of 31 July 2027, Queensland time. The server enforces this too.
+  var RSVP_CLOSES = new Date('2027-08-01T00:00:00+10:00');
+  function $(id){ return document.getElementById(id); }
+  function closeRsvps(){ form.hidden = true; out.parentNode.hidden = true; $('r-closed').hidden = false; }
+  function store(k, v){ try{ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
+  function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+  // A random id kept on this device, so a guest who changes how they write their name still replaces their earlier reply.
+  var token = load('rsvp-token');
+  if(!token){ token = (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2); store('rsvp-token', token); }
+  function summary(d){
+    var L = ['Reply from ' + d.name, d.attending ? 'Joyfully accepts, ' + d.guests + ' guest(s)' : 'Regretfully declines'];
+    if(d.dietary) L.push('Dietary: ' + d.dietary);
+    if(d.attending) L.push('Camping overnight: ' + (d.camping ? 'Yes' : 'No'));
+    if(d.song) L.push('Song request: ' + d.song);
+    if(d.note) L.push('Note: ' + d.note);
+    return L.join('\n');
+  }
+  if(new Date() >= RSVP_CLOSES) closeRsvps();
+  else {
+    // Returning guest on the same device: show their saved reply and prefill the form so they can change it.
+    var prev = null; try{ prev = JSON.parse(load('rsvp-last') || 'null'); }catch(e){}
+    if(prev && prev.name){
+      $('r-name').value = prev.name;
+      $(prev.attending ? 'r-yes' : 'r-no').checked = true;
+      if(prev.attending){ $('r-count').value = String(prev.guests); $('r-diet').value = prev.dietary || ''; $(prev.camping ? 'c-yes' : 'c-no').checked = true; $('r-song').value = prev.song || ''; }
+      $('r-note').value = prev.note || '';
+      out.textContent = summary(prev); out.hidden = false;
+      st.textContent = 'We have your reply. Change anything above and send again to update it.';
+      submitBtn.textContent = 'Update my reply';
+    }
+  }
+  form.addEventListener('submit', function(e){
     e.preventDefault();
     if(sending) return;
-    var nameEl = document.getElementById('r-name'), name = nameEl.value.trim();
+    if(new Date() >= RSVP_CLOSES){ closeRsvps(); return; }
+    var nameEl = $('r-name'), name = nameEl.value.trim();
     if(!name){ st.textContent = 'Please add your name so we know who the reply is from.'; nameEl.focus(); return; }
-    var yes = document.getElementById('r-yes').checked;
+    var yes = $('r-yes').checked;
     var data = {
       name: name,
       attending: yes,
-      guests: yes ? parseInt(document.getElementById('r-count').value, 10) : 0,
-      dietary: yes ? document.getElementById('r-diet').value.trim() : '',
-      camping: yes && document.getElementById('c-yes').checked,
-      song: yes ? document.getElementById('r-song').value.trim() : '',
-      note: document.getElementById('r-note').value.trim(),
-      website: document.getElementById('r-web').value
+      guests: yes ? parseInt($('r-count').value, 10) : 0,
+      dietary: yes ? $('r-diet').value.trim() : '',
+      camping: yes && $('c-yes').checked,
+      song: yes ? $('r-song').value.trim() : '',
+      note: $('r-note').value.trim()
     };
-    var L = ['Reply from ' + name, yes ? 'Joyfully accepts, ' + data.guests + ' guest(s)' : 'Regretfully declines'];
-    if(data.dietary) L.push('Dietary: ' + data.dietary);
-    if(yes) L.push('Camping overnight: ' + (data.camping ? 'Yes' : 'No'));
-    if(data.song) L.push('Song request: ' + data.song);
-    if(data.note) L.push('Note: ' + data.note);
-    out.textContent = L.join('\n');
+    var wasUpdate = submitBtn.textContent === 'Update my reply';
     sending = true; submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; st.textContent = '';
-    fetch('/api/rsvp', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)})
-      .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    fetch('/api/rsvp', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.assign({token: token, website: $('r-web').value}, data))})
+      .then(function(r){
+        if(r.status === 410){ closeRsvps(); throw 'closed'; }
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function(){
-        out.hidden = false; copyBtn.hidden = true; sendEl.hidden = true;
-        st.textContent = yes ? 'Wonderful, your reply is in. We can’t wait to see you.' : 'Thank you for letting us know. We’ll miss you.';
+        store('rsvp-last', JSON.stringify(data));
+        out.textContent = summary(data); out.hidden = false;
+        st.textContent = wasUpdate ? 'Your reply has been updated.' : (yes ? 'Wonderful, your reply is in. We can’t wait to see you.' : 'Thank you for letting us know. We’ll miss you.');
         submitBtn.textContent = 'Update my reply';
         if(yes){ for(var k=0;k<6;k++) burst(Math.random()*innerWidth, -10, 16, 1.4, Math.PI/2); }
       })
-      .catch(function(){
-        out.hidden = false; copyBtn.hidden = false; sendEl.hidden = false;
-        st.textContent = 'Sorry, we couldn’t send that just now. Please try again, or copy your reply and send it to us.';
-        submitBtn.textContent = 'Send my reply';
+      .catch(function(err){
+        if(err === 'closed') return;
+        st.textContent = 'Sorry, something went wrong and your reply wasn’t saved. Please check your connection and try again.';
+        submitBtn.textContent = wasUpdate ? 'Update my reply' : 'Send my reply';
       })
       .then(function(){ sending = false; submitBtn.disabled = false; });
-  });
-  document.getElementById('r-copy').addEventListener('click', function(){
-    function sel(){ var r = document.createRange(); r.selectNodeContents(out); var s = getSelection(); s.removeAllRanges(); s.addRange(r); st.textContent = 'Selected. Use your device’s copy option.'; }
-    try{ navigator.clipboard.writeText(out.textContent).then(function(){ st.textContent = 'Copied.'; }, sel); }catch(err){ sel(); }
   });
 
   route(location.hash.slice(1), true);

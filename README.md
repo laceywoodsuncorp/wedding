@@ -13,8 +13,15 @@ The wedding site, hosted on **Cloudflare Pages**. RSVPs are saved to a
 | `functions/admin/export.js` | `/admin/export` downloads all replies as a CSV file you can open in Excel or Google Sheets. |
 | `lib/db.js` | Shared database and password helpers. The table is created automatically on first use. |
 
-If saving a reply fails (for example, no connection), the form falls back to
-showing the reply with a **Copy reply** button so the guest can send it to you directly.
+**One reply per guest.** Guests are matched by name (ignoring capitals and extra spaces),
+and also by a random ID saved on their device, so if someone replies again, even
+under a slightly different name, their new reply replaces the old one. A returning guest
+sees their saved reply pre-filled and can update it.
+
+**Deadline.** RSVPs close at the end of **31 July 2027** (Queensland time). After that
+the form is replaced with a "RSVPs closed" message and the server refuses new replies.
+To change the date, edit `RSVP_CLOSES` in both `lib/db.js` and `public/index.html`,
+and the "by 31 July 2027" text in `public/index.html`.
 
 ## One-time setup in Cloudflare
 
@@ -38,10 +45,9 @@ showing the reply with a **Copy reply** button so the guest can send it to you d
 - Go to `https://<your-site>/admin`. When the browser asks for a login, enter any
   username and your `ADMIN_PASSWORD`.
 - Click **Download as spreadsheet (CSV)** for a file version.
-- If a guest replies more than once (the button changes to "Update my reply"), each
-  reply is kept. Use the most recent one.
+- Each guest appears once, with their latest reply.
 - You can also query the data in the dashboard: **D1 → wedding-rsvp → Console**, e.g.
-  `SELECT * FROM rsvps ORDER BY created_at DESC;`
+  `SELECT * FROM guest_rsvps ORDER BY updated_at DESC;`
 
 ## Local preview
 

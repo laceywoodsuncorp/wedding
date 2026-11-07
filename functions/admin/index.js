@@ -16,7 +16,7 @@ export async function onRequestGet({ request, env }) {
   const body = rows
     .map(
       (r) => `<tr>
-  <td>${esc(r.created_at)} UTC</td>
+  <td>${esc(r.updated_at)} UTC</td>
   <td>${esc(r.name)}</td>
   <td class="${r.attending ? 'y' : 'n'}">${r.attending ? 'Yes' : 'No'}</td>
   <td>${r.attending ? esc(r.guests) : ''}</td>
@@ -56,9 +56,9 @@ td.y{color:#3D7A4A}td.n{color:#A2483F}
   <div class="stat"><b>${campers}</b><span>Camping</span></div>
 </div>
 <a class="dl" href="/admin/export">Download as spreadsheet (CSV)</a>
-<p style="color:var(--muted);margin-top:0">Newest first. If someone replied more than once, all their replies are listed. Use the most recent one.</p>
+<p style="color:var(--muted);margin-top:0">One row per guest, showing their latest reply. Most recently updated first. Times are UTC. RSVPs close 31 July 2027.</p>
 <div class="wrap"><table>
-<thead><tr><th>Received</th><th>Name</th><th>Attending</th><th>Guests</th><th>Dietary</th><th>Camping</th><th>Song</th><th>Note</th></tr></thead>
+<thead><tr><th>Last updated</th><th>Name</th><th>Attending</th><th>Guests</th><th>Dietary</th><th>Camping</th><th>Song</th><th>Note</th></tr></thead>
 <tbody>${body || '<tr><td colspan="8">No replies yet.</td></tr>'}</tbody>
 </table></div>
 </body></html>`;

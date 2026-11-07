@@ -1,7 +1,7 @@
 // GET /admin/export — password-protected CSV download (opens in Excel / Google Sheets).
 import { allRsvps, checkAdmin } from '../../lib/db.js';
 
-const COLS = ['created_at', 'name', 'attending', 'guests', 'dietary', 'camping', 'song', 'note'];
+const COLS = ['updated_at', 'first_replied_at', 'name', 'attending', 'guests', 'dietary', 'camping', 'song', 'note'];
 
 function cell(v) {
   let s = v == null ? '' : String(v);
