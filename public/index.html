@@ -259,7 +259,7 @@ html.calm *,html.calm *::before,html.calm *::after{animation:none!important;tran
     <div class="hero">
       <div class="hero-in">
         <div>
-          <span class="label st" style="--i:0">We’re getting married. Come and celebrate.</span>
+          <span class="label st" style="--i:0" id="greet">We’re getting married. Come and celebrate.</span>
           <h1 class="names st" style="--i:1">Lacey <span class="l2"><em>&amp;</em> Lachlan</span></h1>
           <dl class="facts st" style="--i:2">
             <dt>When</dt><dd>Friday 22 October 2027</dd>
@@ -680,6 +680,15 @@ var ART = {"hero": ["data:image/webp;base64,UklGRpD0BQBXRUJQVlA4IIT0BQCQ2AudASpP
   // RSVPs close at the end of 31 July 2027, Queensland time. The server enforces this too.
   var RSVP_CLOSES = new Date('2027-08-01T00:00:00+10:00');
   function $(id){ return document.getElementById(id); }
+  // Set when the page is opened from a personal invite link (/i/CODE).
+  var INV = window.INVITE || null;
+  if(INV){
+    var g = $('greet'); if(g) g.textContent = 'Dear ' + INV.name + ', we’re getting married. Come and celebrate.';
+    var cnt = $('r-count'), max = Math.max(1, INV.max || 1);
+    cnt.innerHTML = '';
+    for(var n = 1; n <= max; n++){ var o = document.createElement('option'); o.textContent = n; cnt.appendChild(o); }
+    cnt.value = String(max);
+  }
   function closeRsvps(){ form.hidden = true; out.parentNode.hidden = true; $('r-closed').hidden = false; }
   function store(k, v){ try{ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
   function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
@@ -697,7 +706,12 @@ var ART = {"hero": ["data:image/webp;base64,UklGRpD0BQBXRUJQVlA4IIT0BQCQ2AudASpP
   if(new Date() >= RSVP_CLOSES) closeRsvps();
   else {
     // Returning guest on the same device: show their saved reply and prefill the form so they can change it.
-    var prev = null; try{ prev = JSON.parse(load('rsvp-last') || 'null'); }catch(e){}
+    var prev = null;
+    if(INV){
+      // Personal invite link: the reply (if any) comes from the server, so it shows on any device.
+      prev = INV.reply;
+      if(!prev) $('r-name').value = INV.name;
+    } else { try{ prev = JSON.parse(load('rsvp-last') || 'null'); }catch(e){} }
     if(prev && prev.name){
       $('r-name').value = prev.name;
       $(prev.attending ? 'r-yes' : 'r-no').checked = true;
@@ -727,14 +741,14 @@ var ART = {"hero": ["data:image/webp;base64,UklGRpD0BQBXRUJQVlA4IIT0BQCQ2AudASpP
     var wasUpdate = submitBtn.textContent === 'Update my reply';
     sending = true; submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; st.textContent = '';
     fetch('/api/rsvp', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(Object.assign({token: token, website: $('r-web').value}, data))})
+      body: JSON.stringify(Object.assign({token: token, invite: INV ? INV.code : undefined, website: $('r-web').value}, data))})
       .then(function(r){
         if(r.status === 410){ closeRsvps(); throw 'closed'; }
         if(!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       })
       .then(function(){
-        store('rsvp-last', JSON.stringify(data));
+        if(!INV) store('rsvp-last', JSON.stringify(data));
         out.textContent = summary(data); out.hidden = false;
         st.textContent = wasUpdate ? 'Your reply has been updated.' : (yes ? 'Wonderful, your reply is in. We can’t wait to see you.' : 'Thank you for letting us know. We’ll miss you.');
         submitBtn.textContent = 'Update my reply';

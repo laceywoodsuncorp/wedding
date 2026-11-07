@@ -1,5 +1,5 @@
 // POST /api/rsvp: saves a guest's RSVP, replacing any earlier reply from the same guest.
-import { db, json, nameKey, RSVP_CLOSES } from '../../lib/db.js';
+import { db, findGuest, inviteKey, json, nameKey, RSVP_CLOSES } from '../../lib/db.js';
 
 const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
@@ -19,20 +19,33 @@ export async function onRequestPost({ request, env }) {
   if (text(body.website, 200)) return json({ ok: true });
 
   const name = text(body.name, 200).replace(/\s+/g, ' ');
-  const key = nameKey(name);
-  if (!key) return json({ ok: false, error: 'Name is required' }, 400);
+  if (!nameKey(name)) return json({ ok: false, error: 'Name is required' }, 400);
 
   const attending = body.attending === true;
-  const guests = attending ? Math.min(Math.max(parseInt(body.guests, 10) || 1, 1), 10) : 0;
   const token = text(body.token, 100) || null;
 
   try {
     const DB = await db(env);
+    // Replies from a personal invite link are stored against that invite, whatever name is typed.
+    const guest = body.invite ? await findGuest(DB, body.invite) : null;
+    const key = guest ? inviteKey(guest.code) : nameKey(name);
+    const maxGuests = guest ? Math.max(guest.max_guests, 1) : 10;
+    const guests = attending ? Math.min(Math.max(parseInt(body.guests, 10) || 1, 1), maxGuests) : 0;
+
     const statements = [];
-    // Same device replied before under a differently written name: drop that older reply.
+    // Replying from an invite link after an earlier reply on the plain site under the same name:
+    // keep only the invite-linked one.
+    if (guest) {
+      statements.push(DB.prepare('DELETE FROM guest_rsvps WHERE name_key = ?').bind(nameKey(name)));
+    }
+    // Same device replied before (without an invite link) under a differently written name:
+    // drop that older reply. Invite-linked replies are never removed this way, so one phone
+    // can reply for several households.
     if (token) {
       statements.push(
-        DB.prepare('DELETE FROM guest_rsvps WHERE token = ? AND name_key <> ?').bind(token, key)
+        DB.prepare(
+          "DELETE FROM guest_rsvps WHERE token = ? AND name_key <> ? AND name_key NOT LIKE 'invite:%'"
+        ).bind(token, key)
       );
     }
     statements.push(
